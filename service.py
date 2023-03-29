@@ -183,3 +183,244 @@ class KiwoomAPI(QAxWidget):
             pass
 
        
+
+####################################################################################
+############################콜백 이벤트 Slot 목록 ##################################
+    
+    # 로그인 콜백
+    def login_slot(self, errCode):         
+        print("# mode:  login_slot")
+        if errCode == 0:
+            print("# mode: 로그인 성공")
+            self.post_message("#autobot", "로그인 성공")          
+            self.get_account_info()
+            
+        elif errCode == 100:
+            print("errCode:사용자 정보교환 실패")
+            self.post_message("#autobot", "errCode:사용자 정보교환 실패") 
+        elif errCode == 101:
+            print("errCode:서버접속 실패")
+            self.post_message("#autobot","errCode:서버접속 실패") 
+        elif errCode == 102:
+            print("errCode: 버전처리 실패")
+            self.post_message("#autobot", "errCode: 버전처리 실패") 
+        elif errCode == -106:
+            os.system('cls')
+            print(errors(errCode)[1])
+            self.post_message("#autobot", errors(errCode)[1]) 
+
+        self.login_event_loop.exit()  # 로그인이 완료되면 로그인 창을 닫는다.  
+
+    # Tran 수신 콜백
+    def trdata_slot(self, sScrNo, sRQName, sTrCode, sRecordName, sPrevNext): 
+        print("# mode: :  trdata_slot.")
+        if sRQName == "예수금상세현황요청":
+            print("# mode:  예수금상세현황요청.")
+            deposit = self.GetCommData( sTrCode, sRQName, 0, "예수금")
+            self.deposit = int(deposit)
+
+            use_money = float(self.deposit) * self.use_money_percent
+            self.use_money = int(use_money)
+            self.use_money = self.use_money / 4
+
+            output_deposit = self.GetCommData( sTrCode, sRQName, 0, "출금가능금액")
+            self.output_deposit = int(output_deposit)
+
+            print("예수금 : %s" % self.output_deposit)
+
+            self.stop_screen_cancel(self.screen_my_info)
+            self.detail_account_info_event_loop.exit()
+          
+
+        elif sRQName == "종목선택완료":
+            print("# mode:  : 종목선택완료.")    
+            # 종목조회와 동시에 초기 스테이터스 셋팅
+            if int(self.acc_portfolio[self.OneTrStatus["trCode"]]["보유수량"]) > 0:
+                self.acc_portfolio[self.OneTrStatus["trCode"]].update({"tradingStatus": "SELL"})
+                self.OneTrStatus["tradingStatus"] = "SELL"
+            else:
+                self.acc_portfolio[self.OneTrStatus["trCode"]].update({"tradingStatus": "BUY"})
+                self.OneTrStatus["tradingStatus"] = "BUY"
+            # 종목새로 셋팅할 때 마다, 이전거래 요청 초기화 및 거래중지 상태로 변경
+            self.stopTradingReal()     
+            # 종목새로 셋팅할 때 마다, 값 정보 초기화    
+            self.update_trading_status("buyStatus", {
+                "buyReqGoPrice": None,
+                "buyPrice": None,
+                "buyReqWithdrawPrice": None
+            })
+
+            self.update_trading_status("sellStatus", {
+                "sellReqGoPrice": None,
+                "sellPrice": None,
+                "sellReqWitdrawPrice": None
+            })        
+            self.buyReqGoPrice.clear()
+            self.buyPrice.clear()
+            self.buyReqWithdrawPrice.clear()
+            self.sellReqGoPrice.clear(),
+            self.sellPrice.clear(),
+            self.sellReqWitdrawPrice.clear()
+            
+
+        elif sRQName == "계좌평가잔고내역요청":
+            print("# mode: 계좌평가잔고내역요청.")
+            column_head = ["종목번호", "종목명", "보유수량", "매입가", "현재가", "평가손익", "수익률(%)"]
+            colCount = len(column_head)
+            rowCount = self.kiwoomReal.dynamicCall("GetRepeatCnt(QString, QString)", sTrCode, sRQName)
+            self.stocklistTableWidget_2.setColumnCount(colCount)                 # 행 갯수
+            self.stocklistTableWidget_2.setRowCount(rowCount)                    # 열 갯수 (종목 수)
+            self.stocklistTableWidget_2.setHorizontalHeaderLabels(column_head)   # 행의 이름 삽입
+
+            self.rowCount = rowCount
+            print("계좌에 들어있는 종목 수 %s" % rowCount)
+
+            totalBuyingPrice = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "총매입금액"))
+            currentTotalPrice = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "총평가금액"))
+            balanceAsset = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "추정예탁자산"))
+            totalEstimateProfit = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "총평가손익금액"))
+            total_profit_loss_rate = float(self.kiwoomReal.dynamicCall("GetCommData(String, String, int, String)", sTrCode, sRQName, 0, "총수익률(%)")) 
+
+
+            self.label_1.setText(str(totalBuyingPrice))
+            self.label_2.setText(str(currentTotalPrice))
+            self.label_3.setText(str(balanceAsset))
+            self.label_4.setText(str(totalEstimateProfit))
+            self.label_5.setText(str(total_profit_loss_rate))      
+            
+            for index in range(rowCount):
+                itemCode = self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "종목번호").strip(" ").strip("A")
+                itemName = self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "종목명")
+                amount = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "보유수량"))
+                buyingPrice = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "매입가"))
+                currentPrice = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "현재가"))
+                estimateProfit = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "평가손익"))
+                profitRate = float(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "수익률(%)"))
+                total_chegual_price = self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "매입금액")
+                total_chegual_price = int(total_chegual_price.strip())
+                possible_quantity = self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "매매가능수량")
+                possible_quantity = int(possible_quantity.strip())
+
+                if itemCode in self.acc_portfolio:
+                    pass
+                else:
+                    self.acc_portfolio.update({itemCode:{}})     
+                self.acc_portfolio[itemCode].update({"종목번호":itemCode,
+                                                     "종목명": itemName.strip(),
+                                                     "보유수량": amount,
+                                                     "매입가": buyingPrice,
+                                                     "수익률(%)": profitRate,
+                                                     "현재가": currentPrice,
+                                                     "매입금액": total_chegual_price,
+                                                     "매매가능수량": possible_quantity})
+
+                # print("#####",self.acc_portfolio[itemCode])
+                # print("#####",self.acc_portfolio)
+
+                self.stocklistTableWidget_2.setItem(index, 0, QTableWidgetItem(str(itemCode)))
+                self.stocklistTableWidget_2.setItem(index, 1, QTableWidgetItem(str(itemName)))
+                self.stocklistTableWidget_2.setItem(index, 2, QTableWidgetItem(str(amount)))
+                self.stocklistTableWidget_2.setItem(index, 3, QTableWidgetItem(str(buyingPrice)))
+                self.stocklistTableWidget_2.setItem(index, 4, QTableWidgetItem(str(currentPrice)))
+                self.stocklistTableWidget_2.setItem(index, 5, QTableWidgetItem(str(estimateProfit)))
+                self.stocklistTableWidget_2.setItem(index, 6, QTableWidgetItem(str(profitRate)))
+
+            self.screen_number_setting()
+
+            if sPrevNext == "2":
+                self.detail_account_mystock(sPrevNext="2")  # 다음 페이지가 있으면 전부 검색한다.
+            else:
+                 
+                self.detail_account_info_event_loop.exit()      
+        else:
+            print("# mode: trdata_slot -sRQName:", sRQName)
+
+
+    def realdata_slot(self, sCode, sRealType, sRealData):
+        # print("# mode:  realdata_slot", sRealData)
+        if sRealType == "장시작시간":
+            fid = self.realType.REALTYPE[sRealType]['장운영구분'] # (0:장시작전, 2:장종료전(20분), 3:장시작, 4,8:장종료(30분), 9:장마감)
+            value = self.kiwoomReal.dynamicCall("GetCommRealData(QString, int)", sCode, fid)
+            self.jang.exit()
+
+            if value == '0':
+                print("장 시작 전\n")
+
+            elif value == '3':
+                print("정규장 시작\n")
+
+            elif value == "2":
+                print("장 종료, 동시호가로 넘어감\n")
+
+            elif value == '4':  # 장시간외 거래 시작
+                print("3시30분 장 종료\n")
+                self.OneTrStatus["status"] = "거래중지"
+                for code in self.portfolio_stock_dict.keys():
+                    self.kiwoomReal.dynamicCall("SetRealRemove(QString, QString)", self.portfolio_stock_dict[code]['스크린번호'], code)
+                self.calculator_fnc()
+                sys.exit()
+            elif value == "8": #시간외
+                pass
+
+        elif sRealType == "주식체결":
+            b = self.kiwoomReal.dynamicCall("GetCommRealData(QString, int)", sCode, self.realType.REALTYPE[sRealType]['현재가']) # 출력 : +(-)2520
+            b = abs(int(b))
+            
+            self.OneTrStatus["nowTrPrice"] = b  # 종목검색 정보 윗줄의 현재가도 실시간 업데이트
+            self.tempText = "현재가:"+str(b)
+            self.realTimeTrInfo.clear()
+            self.realTimeTrInfo.setPlainText(self.tempText) # 종목검색 정보 실시간 업데이트.
+
+            self.kst = pytz.timezone('Asia/Seoul')
+            self.current_time = datetime.datetime.now(self.kst).time()
+
+            if self.current_time > datetime.time(9, 0) or self.current_time <= datetime.time(15, 30):
+                if self.OneTrStatus["status"] =="거래시작":
+                    self.tradingStatusSetting()  
+                    self.tradingExcecute(self.OneTrStatus["tradingStatus"] , sCode)
+        else:
+            print("# mode:  realdata_slot - sRealType: ", sRealType)     
+
+    #실시간 주문 접수/확인 이벤트
+    def chejan_slot(self, sGubun, nItemCnt, sFidList):  
+        # sGubun – 0: 주문체결통보, 1: 국내주식 잔고통보, 4: 파생상품 잔고통보
+        # sFidList – 데이터 구분은 ‘;’
+
+        if int(sGubun) == 0:
+            print("# mode:  chejan_slot-주문체결통보") 
+            price = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['체결가']).strip()
+            if price == '':
+                return
+            sCode = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['종목코드']).strip()[1:]
+            ctime = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['주문/체결시간']).strip()[1:]
+            name = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['종목명']).strip()
+            quantity = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['체결량']).strip()
+            status = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['매도수구분']).strip()
+            print("status:",status)
+            if status == '2':  # 매수              
+                self.acc_portfolio[sCode].update({"종목명": name})
+                self.acc_portfolio[sCode].update({"보유수량": int(quantity)})
+                self.acc_portfolio[sCode].update({"체결가": price})                
+                msg = "[매수]" + name + " 체결가 : " + price + " 수량 : " + quantity+" 체결시간:"+ctime
+                # print(msg)
+                # print(self.acc_portfolio[sCode])
+                self.post_message("#autobot", msg) 
+                self.pteLog.appendPlainText(msg+"\n") 
+                self.OneTrStatus["tradingStatus"] ="SELL"
+
+            elif status == '1':  # 매도   
+                print(self.acc_portfolio[sCode])
+                msg = "[매도]" + name + " 체결가 : " + price + " 수량 : " + quantity+" 체결시간:"+ctime
+                # print(msg)
+                self.post_message("#autobot", msg) 
+                self.pteLog.setPlainText(msg)
+                self.acc_portfolio[sCode]['보유수량'] -= int(quantity)                    
+                self.OneTrStatus["tradingStatus"] ="BUY"
+                self.pteLog.appendPlainText(msg+"\n") 
+            
+        else:
+            print("chejan_slot, else: ", sGubun)                            
+
+    def msg_slot(self, sScrNo, sRQName, sTrCode, msg):
+       # print("스크린: %s, 요청이름: %s, tr코드: %s --- %s" %(sScrNo, sRQName, sTrCode, msg))
+        self.post_message("#autobot", "스크린: %s, 요청이름: %s, tr코드: %s --- %s" %(sScrNo, sRQName, sTrCode, msg)) 
