@@ -35,7 +35,7 @@ class KiwoomEventHandler:
         print(result)         
         return result  
 
-    def handle_single_code_Info(self,scode):             #한 종목 정보 
+    def handle_single_code_Info(self,scode):             #종목 
         print("handle_my_balance_check")
         corp = self.kiwoom.GetMasterCodeName(scode)
         con = self.kiwoom.GetMasterConstruction(scode)
@@ -65,7 +65,7 @@ class KiwoomEventHandler:
 
 kiwoom_event_handler = KiwoomEventHandler()
 
-db = redis.StrictRedis(host='localhost', port=5000, db=0)
+db = redis.StrictRedis(host='localhost', port=6379, db=0)
 request_types = ['account_info', 'select_account', 'start_trading', 'stop_trading']
 
 while True:

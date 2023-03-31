@@ -3,7 +3,7 @@ from flask import Flask, jsonify, request
 import redis
 
 app = Flask(__name__)
-db = redis.StrictRedis(host='localhost', port=5000, db=0)
+db = redis.StrictRedis(host='localhost', port=6369, db=0)
 
 def send_request_to_stock_program(request_type, data):
     db.set(request_type, data)
@@ -19,6 +19,7 @@ def send_request_to_stock_program(request_type, data):
 @app.route('/test')
 def test():
     print("test")
+    return jsonify({'test': "test"})
 
 @app.route('/account_info')
 def account_info():
