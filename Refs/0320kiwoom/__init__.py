@@ -7,24 +7,22 @@ from PyQt5.QtWidgets import *
 from PyQt5 import uic             # ui 파일을 가져오기위한 함수
 from PyQt5.QtCore import *        # eventloop/스레드를 사용 할 수 있는 함수 가져옴.
 from PyQt5.QtTest import *
-from PyQt5.QtWidgets import *                 # GUI의 그래픽적 요소를 제어
-from PyQt5.QAxContainer import *              # 키움증권의 클레스를 사용할 수 있게 한다.(QAxWidget)
-from PyQt5Singleton import Singleton
-from kiwoomType import *  
+from kiwoom import *         # 키움증권 함수/공용 방 (싱글턴)
 import pytz
 import datetime
-from kiwoomRelated.errorCode import *
+from errorCode import *
 
 form_class = uic.loadUiType("./UpperLimitPriceTrading.ui")[0]             # 만들어 놓은 ui 불러오기
 
-class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : PyQt5에서 윈도우 생성시 필요한 함수
+class Login_Machnine(QMainWindow, QWidget, form_class):       # QMainWindow : PyQt5에서 윈도우 생성시 필요한 함수
 
     def __init__(self, *args, **kwargs):                      # Main class의 self를 초기화 한다.
-        super(KiwoomOperating, self).__init__(*args, **kwargs)
+        super(Login_Machnine, self).__init__(*args, **kwargs)
         form_class.__init__(self)                            # 상속 받은 from_class를 실행하기 위한 초기값(초기화)
         self.setUI() 
-        self.kiwoomReal = QAxWidget('KHOPENAPI.KHOpenAPICtrl.1')  
-
+        self.k = Kiwoom()  
+        # READY = 2 BUY = 3 BUY_REQUESTING = 4 BUY_CANCELING = 5 SELL = 6 SELL_REQUESTING = 7 SELL_CANCELING = 8
+        # 하나의 종목만 관리하는 상태값
         self.OneTrStatus ={
             "trCode":None,
             "nowTrPrice":None,
@@ -112,20 +110,20 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
 
     def signal_login_commConnect(self):
 
-        self.kiwoomReal.dynamicCall("CommConnect()")  
+        self.k.kiwoom.dynamicCall("CommConnect()")  
         self.login_event_loop.exec_()  
         print("# mode:  signal_login_commConnect")
 
     def event_slots(self):
         print("# mode:  event_slots")
-        self.kiwoomReal.OnEventConnect.connect(self.login_slot)  #통신연결 상태 변경시 이벤트
-        self.kiwoomReal.OnReceiveTrData.connect(self.trdata_slot) # 트랜 수신시이벤트
-        self.kiwoomReal.OnReceiveMsg.connect(self.msg_slot) #수신메시지 이벤트
+        self.k.kiwoom.OnEventConnect.connect(self.login_slot)  #통신연결 상태 변경시 이벤트
+        self.k.kiwoom.OnReceiveTrData.connect(self.trdata_slot) # 트랜 수신시이벤트
+        self.k.kiwoom.OnReceiveMsg.connect(self.msg_slot) #수신메시지 이벤트
 
     def real_event_slot(self):
         print("# mode: real_event_slot")        
-        self.kiwoomReal.OnReceiveRealData.connect(self.realdata_slot) # 실시간 시세 이벤트 연결
-        self.kiwoomReal.OnReceiveChejanData.connect(self.chejan_slot) # 주문 접수/확인 수신시 이벤트
+        self.k.kiwoom.OnReceiveRealData.connect(self.realdata_slot) # 실시간 시세 이벤트 연결
+        self.k.kiwoom.OnReceiveChejanData.connect(self.chejan_slot) # 주문 접수/확인 수신시 이벤트
 
     def post_message(self,channel, text):
         
@@ -147,28 +145,28 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
     def SetRealReg(self, screen_no, code_list, fid_list, real_type):
         print('# mode:  SetRealReg')        
         print('# mode: screen_no',screen_no, 'code_list',code_list,'fid_list',fid_list,'real_type',real_type)
-        self.kiwoomReal.dynamicCall("SetRealReg(QString, QString, QString, QString)", 
+        self.k.kiwoom.dynamicCall("SetRealReg(QString, QString, QString, QString)", 
                               screen_no, code_list, fid_list, real_type)
 
     def GetCommData(self, trCode,recordeName, index, itemname):
         print('# mode:  GetCommData') 
-        result = self.kiwoomReal.dynamicCall("GetCommData( QString, QString, int, QString)",trCode,recordeName, index, itemname)   
+        result = self.k.kiwoom.dynamicCall("GetCommData( QString, QString, int, QString)",trCode,recordeName, index, itemname)   
 
     def sendOrderFunc(self, rqname, screen_no, acc_no, order_type, code, quantity, price, hoga, order_no):
-        result = self.kiwoomReal.dynamicCall("SendOrder(QString, QString, QString, int, QString, int, int, QString, QString)", [rqname, screen_no, acc_no, order_type, code, quantity, price, hoga, order_no])
+        result = self.k.kiwoom.dynamicCall("SendOrder(QString, QString, QString, int, QString, int, int, QString, QString)", [rqname, screen_no, acc_no, order_type, code, quantity, price, hoga, order_no])
         return result   
 
     def SetInputValue(self,id,value):
-        self.kiwoomReal.dynamicCall("SetInputValue(Qstring, Qstring)",id,value)
+        self.k.kiwoom.dynamicCall("SetInputValue(Qstring, Qstring)",id,value)
 
     def CommRqData(self, rqname, trcode, next, screen_no):
-        self.kiwoomReal.dynamicCall("CommRqData(QString, QString, int, QString", rqname, trcode, next, screen_no)
+        self.k.kiwoom.dynamicCall("CommRqData(QString, QString, int, QString", rqname, trcode, next, screen_no)
         self.detail_account_info_event_loop.exec_()
 
 ####################################### 기능 함수 ######################################
 
     def get_account_info(self): #계좌정보 가져오는 함수
-        account_list = self.kiwoomReal.dynamicCall("GetLoginInfo(QString)", "ACCNO")
+        account_list = self.k.kiwoom.dynamicCall("GetLoginInfo(QString)", "ACCNO")
         # print(account_list)
 
         for n in account_list.split(';'):
@@ -187,11 +185,11 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
         self.account_num = account
         print("최종 선택 계좌는 %s" % self.account_num)
 
-        self.kiwoomReal.dynamicCall("SetInputValue(String, String)", "계좌번호", account)
-        self.kiwoomReal.dynamicCall("SetInputValue(String, String)", "비밀번호", "0000")  # 모의투자 0000
-        self.kiwoomReal.dynamicCall("SetInputValue(String, String)", "비밀번호입력매체구분", "00")
-        self.kiwoomReal.dynamicCall("SetInputValue(String, String)", "조회구분", "2")
-        self.kiwoomReal.dynamicCall("CommRqData(String, String, int, String)", "계좌평가잔고내역요청", "opw00018", sPrevNext, self.screen_my_info)
+        self.k.kiwoom.dynamicCall("SetInputValue(String, String)", "계좌번호", account)
+        self.k.kiwoom.dynamicCall("SetInputValue(String, String)", "비밀번호", "0000")  # 모의투자 0000
+        self.k.kiwoom.dynamicCall("SetInputValue(String, String)", "비밀번호입력매체구분", "00")
+        self.k.kiwoom.dynamicCall("SetInputValue(String, String)", "조회구분", "2")
+        self.k.kiwoom.dynamicCall("CommRqData(String, String, int, String)", "계좌평가잔고내역요청", "opw00018", sPrevNext, self.screen_my_info)
         self.detail_account_info_event_loop.exec_()
 
     def screen_number_setting(self):
@@ -251,7 +249,7 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
         self.acc_portfolio[self.OneTrStatus["trCode"]].update({"selectedTrcode": code})
         self.SetInputValue( "종목코드", code)
         self.CommRqData( "종목선택완료", "opt10001", 0, self.screen_my_info)   
-        print("# mode:  stockSearchAndSetting code: ",code )
+        print("# mode:  s-tockSearchAndSetting code: ",code )
 
 
     def update_trading_status(self, key, value):
@@ -272,7 +270,7 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
         })
 
         self.OneTrStatus["status"] = "거래시작"
-        self.kiwoomReal.dynamicCall("GetCommRealData(QString, int)",self.OneTrStatus["trCode"], self.realType.REALTYPE["주식체결"]['현재가'])
+        self.k.kiwoom.dynamicCall("GetCommRealData(QString, int)",self.OneTrStatus["trCode"], self.realType.REALTYPE["주식체결"]['현재가'])
         print("called\n")  
 
 
@@ -280,7 +278,7 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
     def stopTradingReal(self):
         print("# mode:  거래중지")
         self.OneTrStatus["status"] = "거래중지"
-        self.kiwoomReal.dynamicCall("SetRealRemove(QString, QString)","ALL", self.OneTrStatus["trCode"])  
+        self.k.kiwoom.dynamicCall("SetRealRemove(QString, QString)","ALL", self.OneTrStatus["trCode"])  
         QTest.qWait(1000) 
 
     def fliterdOrderSuccessReturn(self, result):
@@ -377,12 +375,12 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
 
     # 스크린 번호 연결 끊기
     def stop_screen_cancel(self, sScrNo=None):
-        self.kiwoomReal.dynamicCall("DisconnectRealData(QString)", sScrNo) 
+        self.k.kiwoom.dynamicCall("DisconnectRealData(QString)", sScrNo) 
 
 
     # 마켓에 따른 코드정보들 소환 함수
     def get_code_list_by_market(self, market_code):
-        code_list = self.kiwoomReal.dynamicCall("GetCodeListByMarket(QString)", market_code)
+        code_list = self.k.kiwoom.dynamicCall("GetCodeListByMarket(QString)", market_code)
         code_list = code_list.split(';')[:-1]
         return code_list
 
@@ -392,7 +390,7 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
         code_list = self.get_code_list_by_market("10")
         print("코스닥 갯수 %s " % len(code_list))
         for idx, code in enumerate(code_list):
-            self.kiwoomReal.dynamicCall("DisconnectRealData(QString)", self.screen_calculation_stock) # 스크린 연결 끊기
+            self.k.kiwoom.dynamicCall("DisconnectRealData(QString)", self.screen_calculation_stock) # 스크린 연결 끊기
 
             print("%s / %s : KOSDAQ Stock Code : %s is updating... " % (idx + 1, len(code_list), code))
             self.day_kiwoom_db(code=code)
@@ -422,7 +420,7 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
     
     # 로그인 콜백
     def login_slot(self, errCode):         
-        print("# mode:  login_slot")
+        print("# mode:  errCode", errCode)
         if errCode == 0:
             print("# mode: 로그인 성공")
             self.post_message("#autobot", "로그인 성공")          
@@ -446,7 +444,8 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
 
     # Tran 수신 콜백
     def trdata_slot(self, sScrNo, sRQName, sTrCode, sRecordName, sPrevNext): 
-        print("# mode: :  trdata_slot.")
+        # print("# mode: :  trdata_slot.")
+        print("스크린: %s, 요청이름: %s, tr코드: %s sRecordName: %s" %(sScrNo, sRQName, sTrCode, sRecordName))
         if sRQName == "예수금상세현황요청":
             print("# mode:  예수금상세현황요청.")
             deposit = self.GetCommData( sTrCode, sRQName, 0, "예수금")
@@ -500,7 +499,7 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
             print("# mode: 계좌평가잔고내역요청.")
             column_head = ["종목번호", "종목명", "보유수량", "매입가", "현재가", "평가손익", "수익률(%)"]
             colCount = len(column_head)
-            rowCount = self.kiwoomReal.dynamicCall("GetRepeatCnt(QString, QString)", sTrCode, sRQName)
+            rowCount = self.k.kiwoom.dynamicCall("GetRepeatCnt(QString, QString)", sTrCode, sRQName)
             self.stocklistTableWidget_2.setColumnCount(colCount)                 # 행 갯수
             self.stocklistTableWidget_2.setRowCount(rowCount)                    # 열 갯수 (종목 수)
             self.stocklistTableWidget_2.setHorizontalHeaderLabels(column_head)   # 행의 이름 삽입
@@ -508,11 +507,11 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
             self.rowCount = rowCount
             print("계좌에 들어있는 종목 수 %s" % rowCount)
 
-            totalBuyingPrice = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "총매입금액"))
-            currentTotalPrice = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "총평가금액"))
-            balanceAsset = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "추정예탁자산"))
-            totalEstimateProfit = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "총평가손익금액"))
-            total_profit_loss_rate = float(self.kiwoomReal.dynamicCall("GetCommData(String, String, int, String)", sTrCode, sRQName, 0, "총수익률(%)")) 
+            totalBuyingPrice = int(self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "총매입금액"))
+            currentTotalPrice = int(self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "총평가금액"))
+            balanceAsset = int(self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "추정예탁자산"))
+            totalEstimateProfit = int(self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, 0, "총평가손익금액"))
+            total_profit_loss_rate = float(self.k.kiwoom.dynamicCall("GetCommData(String, String, int, String)", sTrCode, sRQName, 0, "총수익률(%)")) 
 
 
             self.label_1.setText(str(totalBuyingPrice))
@@ -522,16 +521,16 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
             self.label_5.setText(str(total_profit_loss_rate))      
             
             for index in range(rowCount):
-                itemCode = self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "종목번호").strip(" ").strip("A")
-                itemName = self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "종목명")
-                amount = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "보유수량"))
-                buyingPrice = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "매입가"))
-                currentPrice = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "현재가"))
-                estimateProfit = int(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "평가손익"))
-                profitRate = float(self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "수익률(%)"))
-                total_chegual_price = self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "매입금액")
+                itemCode = self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "종목번호").strip(" ").strip("A")
+                itemName = self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "종목명")
+                amount = int(self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "보유수량"))
+                buyingPrice = int(self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "매입가"))
+                currentPrice = int(self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "현재가"))
+                estimateProfit = int(self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "평가손익"))
+                profitRate = float(self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "수익률(%)"))
+                total_chegual_price = self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "매입금액")
                 total_chegual_price = int(total_chegual_price.strip())
-                possible_quantity = self.kiwoomReal.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "매매가능수량")
+                possible_quantity = self.k.kiwoom.dynamicCall("GetCommData(QString, QString, int, QString)", sTrCode, sRQName, index, "매매가능수량")
                 possible_quantity = int(possible_quantity.strip())
 
                 if itemCode in self.acc_portfolio:
@@ -557,7 +556,8 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
                 self.stocklistTableWidget_2.setItem(index, 4, QTableWidgetItem(str(currentPrice)))
                 self.stocklistTableWidget_2.setItem(index, 5, QTableWidgetItem(str(estimateProfit)))
                 self.stocklistTableWidget_2.setItem(index, 6, QTableWidgetItem(str(profitRate)))
-
+                print("#####itemCode ",self.acc_portfolio[itemCode])
+                print("#####",self.acc_portfolio)
             self.screen_number_setting()
 
             if sPrevNext == "2":
@@ -573,7 +573,7 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
         # print("# mode:  realdata_slot", sRealData)
         if sRealType == "장시작시간":
             fid = self.realType.REALTYPE[sRealType]['장운영구분'] # (0:장시작전, 2:장종료전(20분), 3:장시작, 4,8:장종료(30분), 9:장마감)
-            value = self.kiwoomReal.dynamicCall("GetCommRealData(QString, int)", sCode, fid)
+            value = self.k.kiwoom.dynamicCall("GetCommRealData(QString, int)", sCode, fid)
             self.jang.exit()
 
             if value == '0':
@@ -589,14 +589,14 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
                 print("3시30분 장 종료\n")
                 self.OneTrStatus["status"] = "거래중지"
                 for code in self.portfolio_stock_dict.keys():
-                    self.kiwoomReal.dynamicCall("SetRealRemove(QString, QString)", self.portfolio_stock_dict[code]['스크린번호'], code)
+                    self.k.kiwoom.dynamicCall("SetRealRemove(QString, QString)", self.portfolio_stock_dict[code]['스크린번호'], code)
                 self.calculator_fnc()
                 sys.exit()
             elif value == "8": #시간외
                 pass
 
         elif sRealType == "주식체결":
-            b = self.kiwoomReal.dynamicCall("GetCommRealData(QString, int)", sCode, self.realType.REALTYPE[sRealType]['현재가']) # 출력 : +(-)2520
+            b = self.k.kiwoom.dynamicCall("GetCommRealData(QString, int)", sCode, self.realType.REALTYPE[sRealType]['현재가']) # 출력 : +(-)2520
             b = abs(int(b))
             
             self.OneTrStatus["nowTrPrice"] = b  # 종목검색 정보 윗줄의 현재가도 실시간 업데이트
@@ -621,14 +621,14 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
 
         if int(sGubun) == 0:
             print("# mode:  chejan_slot-주문체결통보") 
-            price = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['체결가']).strip()
+            price = self.k.kiwoom.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['체결가']).strip()
             if price == '':
                 return
-            sCode = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['종목코드']).strip()[1:]
-            ctime = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['주문/체결시간']).strip()[1:]
-            name = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['종목명']).strip()
-            quantity = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['체결량']).strip()
-            status = self.kiwoomReal.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['매도수구분']).strip()
+            sCode = self.k.kiwoom.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['종목코드']).strip()[1:]
+            ctime = self.k.kiwoom.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['주문/체결시간']).strip()[1:]
+            name = self.k.kiwoom.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['종목명']).strip()
+            quantity = self.k.kiwoom.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['체결량']).strip()
+            status = self.k.kiwoom.dynamicCall("GetChejanData(int)", self.realType.REALTYPE['주문체결']['매도수구분']).strip()
             print("status:",status)
             if status == '2':  # 매수              
                 self.acc_portfolio[sCode].update({"종목명": name})
@@ -662,6 +662,6 @@ class KiwoomOperating(QMainWindow, QWidget, form_class):       # QMainWindow : P
 if __name__=='__main__':             
                                     
     app = QApplication(sys.argv)     
-    CH = KiwoomOperating()            
+    CH = Login_Machnine()            
     CH.show()                        
     app.exec_()           

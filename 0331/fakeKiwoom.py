@@ -6,12 +6,13 @@ import pythoncom
 import datetime
 from pykiwoom import parser
 import pandas as pd
-from app.config.errorCode import *
-from app.config.kiwoomType import *
+from errorCode import *
+from kiwoomType import *
 
 
-class KiwoomYo:
+class Kiwoom:
     def __init__(self,
+                 login=False,
                  tr_dqueue=None,
                  real_dqueues=None,
                  tr_cond_dqueue=None,
@@ -99,8 +100,8 @@ class KiwoomYo:
         self.tr_output = {}
         self.real_fid = {}
 
-        # if login:
-        #     self.CommConnect()
+        if login:
+            self.CommConnect()
 
     #-------------------------------------------------------------------------------------------------------------------
     # callback functions
@@ -713,9 +714,9 @@ class KiwoomYo:
         # self.detail_account_info_event_loop.exec_()
         print("sampleRemain2") 
         while not self.received:
-            print("왜 안돼")            
+            print("sampleRemain3")            
             pythoncom.PumpWaitingMessages()
-        print("왜 안돼2") 
+        print("sampleRemain4") 
         return self.tr_data   
 
     def block_request(self, *args, **kwargs):

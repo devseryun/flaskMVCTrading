@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_restful import Resource, Api, reqparse
 from flask_cors import CORS
-from service import KiwoomAPI
+from service.kiwoomService import KiwoomAPI
 
 app = Flask(__name__)
 CORS(app)

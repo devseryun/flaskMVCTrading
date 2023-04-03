@@ -1,21 +1,31 @@
 from flask import Flask
 from flask_cors import CORS, cross_origin
 from flask import Flask, request,  jsonify
+# from pykiwoom.kiwoom import *
+# kiwoom = Kiwoom()
+from app.connections.fakeKiwoom import *
 
-def create_app():
-    app = Flask(__name__)
-    # CORS(app)
 
-    # 블루프린트 등록
-    from app.controllers.stock_controller import stock_bp
-    app.register_blueprint(stock_bp, url_prefix='/stock')
 
-    return app
+app = Flask(__name__)
+CORS(app)
 
-app = create_app()
+kiwoom = KiwoomYo()
+kiwoom.CommConnect(block=True)
+df = kiwoom.block_request("opt10001",
+                        종목코드="005930",
+                        output="주식기본정보",
+                        next=0)
+print(df)
+# return jsonify({"result": df})
+
+@app.route("/getSinlgeTrInfo", methods=["GET"])
+def getSinlgeTrInfo():
+    print(" 확인")
+
 
 if __name__ == '__main__':
-    app.run('0.0.0.0',port=5000, debug=False)
+    app.run('0.0.0.0',port=5000, debug=True)
 
 
 

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1034</width>
+    <width>688</width>
     <height>1196</height>
    </rect>
   </property>
@@ -472,59 +472,13 @@
      </property>
     </widget>
    </widget>
-   <widget class="QLabel" name="label_7">
-    <property name="geometry">
-     <rect>
-      <x>660</x>
-      <y>30</y>
-      <width>51</width>
-      <height>18</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>슬랙토큰:</string>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label_8">
-    <property name="geometry">
-     <rect>
-      <x>660</x>
-      <y>60</y>
-      <width>51</width>
-      <height>18</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>채널명:</string>
-    </property>
-   </widget>
-   <widget class="QLineEdit" name="slackToken">
-    <property name="geometry">
-     <rect>
-      <x>720</x>
-      <y>30</y>
-      <width>113</width>
-      <height>20</height>
-     </rect>
-    </property>
-   </widget>
-   <widget class="QLineEdit" name="slackChannel">
-    <property name="geometry">
-     <rect>
-      <x>720</x>
-      <y>60</y>
-      <width>113</width>
-      <height>20</height>
-     </rect>
-    </property>
-   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1034</width>
+     <width>688</width>
      <height>21</height>
     </rect>
    </property>

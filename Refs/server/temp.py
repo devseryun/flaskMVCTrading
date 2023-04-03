@@ -9,7 +9,7 @@ from PyQt5.QtCore import *        # eventloop/스레드를 사용 할 수 있는
 from PyQt5.QtTest import *
 from PyQt5.QtWidgets import *                 # GUI의 그래픽적 요소를 제어
 from PyQt5.QAxContainer import *              # 키움증권의 클레스를 사용할 수 있게 한다.(QAxWidget)
-from kiwoomRelated.kiwoomType import *  
+from config.kiwoomType import *  
 from kiwoomRelated.errorCode import *
 
 form_class = uic.loadUiType("./UpperLimitPriceTrading.ui")[0]             # 만들어 놓은 ui 불러오기

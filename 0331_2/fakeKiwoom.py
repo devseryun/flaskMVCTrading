@@ -549,6 +549,7 @@ class Kiwoom:
         :return: 종목명
         """
         data = self.kiwooms.dynamicCall("GetMasterCodeName(QString)", code)
+        print("dddd1111")
         return data
 
     def GetMasterListedStockCnt(self, code):

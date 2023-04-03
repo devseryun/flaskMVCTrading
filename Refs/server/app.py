@@ -9,7 +9,7 @@ from PyQt5.QtTest import *
 from PyQt5.QtWidgets import *                 # GUI의 그래픽적 요소를 제어
 from PyQt5.QAxContainer import *              # 키움증권의 클레스를 사용할 수 있게 한다.(QAxWidget)
 from PyQt5Singleton import Singleton
-from kiwoomRelated.kiwoomType import *  
+from config.kiwoomType import *  
 from kiwoomRelated.errorCode import *
 from kiwoomRelated.kiwoomServer import KiwoomServer
 
