@@ -2,6 +2,7 @@
 import time
 import json
 import redis
+import requests
 from customKiwoom import Kiwoom
 kiwoom = Kiwoom()
 kiwoom.CommConnect()  # 로그인
@@ -13,6 +14,7 @@ class KiwoomEventHandler:
     def __init__(self):
         pass
 
+        
     def handle_account_info(self):
         print("handle_account_info")
         account_list = kiwoom.GetLoginInfo("ACCNO")

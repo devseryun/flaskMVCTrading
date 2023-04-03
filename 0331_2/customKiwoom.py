@@ -109,21 +109,6 @@ class Kiwoom:
         if login:
             self.CommConnect()
 
-    def post_message(self,channel, text):
-        
-        SLACK_BOT_TOKEN = "xoxb-4184524433281-5008927392563-qZQ6oS6GFDi2A8DyWSKqCeNg"
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + SLACK_BOT_TOKEN
-        }
-        payload = {
-            'channel': channel,
-            'text': text
-        }
-        r = requests.post('https://slack.com/api/chat.postMessage',
-                        headers=headers,
-                        data=json.dumps(payload)
-                        )
         
     #-------------------------------------------------------------------------------------------------------------------
     # callback functions

@@ -4,6 +4,7 @@ from flask_socketio import SocketIO, emit
 import redis
 import json
 import time
+import requests
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -30,6 +31,22 @@ def send_request_to_stock_program(request_type, data):
         result = "No result found"
     return result
 
+def post_message(channel, text):
+    
+    SLACK_BOT_TOKEN = "xoxb-4184524433281-5008927392563-qZQ6oS6GFDi2A8DyWSKqCeNg"
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SLACK_BOT_TOKEN
+    }
+    payload = {
+        'channel': channel,
+        'text': text
+    }
+    r = requests.post('https://slack.com/api/chat.postMessage',
+                    headers=headers,
+                    data=json.dumps(payload)
+                    )
+        
 @app.route('/test')
 def test():
     print("test")
@@ -56,6 +73,7 @@ def select_account():
     result = send_request_to_stock_program('select_account', account_num)
     retrieved_data =  json.loads(result)
     print(retrieved_data)
+    post_message("#autobot",retrieved_data) #슬랙으로 메시지 전송
     return jsonify({'result': retrieved_data})
 
 # #종목조회 정보(단순정보)
