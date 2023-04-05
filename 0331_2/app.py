@@ -49,6 +49,7 @@ def post_message(channel, text):
                     )
 
 tickerPrice = None
+isTradingStop = False
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -58,11 +59,18 @@ def test():
     print("test")
     return jsonify({'test': "test"})
 
-#내 계좌정보 전달
-@socketio.on('request_account_list')
-def handle_request_account_list():
-    account_list = send_request_to_stock_program('account_info','')
-    emit('account_list', {'account_list': account_list})
+# #내 계좌정보 전달
+# @socketio.on('request_account_list')
+# def handle_request_account_list():
+#     account_list = send_request_to_stock_program('account_info','')
+#     emit('account_list', {'account_list': account_list})
+
+
+@app.route('/account_list', methods=["GET"])
+def get_account_list():
+    account_list = account_list = send_request_to_stock_program('account_info','')
+    account_list = account_list.split(';')
+    return jsonify({'account_list': account_list})
 
 @app.route('/my_balance_check')
 def my_balance_check():
@@ -70,17 +78,17 @@ def my_balance_check():
     result = send_request_to_stock_program('my_balance_check', '')
     return jsonify({'my_balance_check': result})
 
+
+# 소켓으로 선택 계좌 정보 받아와서 kiwoom.account_num 상태값변경만 함.
 @socketio.on('select_account')
 def handle_select_account(data):
     account = data['account']
     # do something with the selected account
     print(f"Selected account: {account}")
-
     result = send_request_to_stock_program('select_account', account)
-    retrieved_data =  json.loads(result)
-    print(retrieved_data)
-    post_message("#autobot",retrieved_data) #슬랙으로 메시지 전송
-    return jsonify({'result': retrieved_data})
+    print(result)
+    post_message("#autobot",result) #슬랙으로 메시지 전송
+
 
 # #종목조회 정보(단순정보)
 @app.route("/get_single_codeInfo", methods=["GET"])
@@ -91,27 +99,22 @@ def getSingleCodeInfo():
     print(result)
     return jsonify({"result": result})
 
-# # #종목조회및 셋팅 ===> 사실상 안씀
-# @app.route("/get_single_codeInfo_and_setting", methods=["GET"])
-# def getSingleCodeInfoAndSetting():
-#     scode = request.args.get("scode")
-#     print("scode: ",scode)
-#     result = send_request_to_stock_program('get_single_codeInfo_and_setting', scode)
-#     print(result)
-#     # return 값으로 현재가를 전달.
-#     return jsonify({"result": result})
-
 # 실시간 계좌평가잔고내역 보여주는  SocketIO 이벤트 핸들러 추가
-@socketio.on('realtime_account_info')
-def handle_realtime_account_info():
-    balance = send_request_to_stock_program('handle_realtime_account_info')
-    emit('account_balance', {'balance': balance})
+@socketio.on('request_account_balance')
+def handle_realtime_account_info(data):
+    selectedAccount = data['selectedAccount']
+    balance = send_request_to_stock_program('handle_realtime_account_info',selectedAccount)
+    balance = json.loads(balance)
+    print(balance)
+    arr = list(balance.values())
+    print(arr)
+    emit('account_balance', {'balance': arr})
 
 
 # 실시간 주가 정보 SocketIO 이벤트 핸들러 추가
 @socketio.on('subscribe_stock')
 def handle_subscribe_stock_price(data):
-    print('dd',data)
+    print('subscribe_stock: ',data)
     scode = data['code']
     while True:
         price = send_request_to_stock_program('handle_realtime_stock_price', scode)
@@ -123,26 +126,37 @@ def handle_subscribe_stock_price(data):
 # 매도매수 SocketIO 이벤트 핸들러 추가
 @socketio.on('start_buying')
 def handle_start_buying(data):
-    buyReqGoPrice = int(data['buyReqGoPrice'])
-    buyPrice = int(data['buyPrice'])
-    buyReqWithdrawPrice = int(data['buyReqWithdrawPrice'])
-
+    forSendingData={
+        "trCode":None,
+        "nowTrPrice":None,
+        "status":"", # 거래시작/ 거래중지
+        "tradingStatus":"", # 6개의 스테이터스 BUY BUY_REQUESTING BUY_CANCELING SELL SELL_REQUESTING SELL_CANCELING
+        "buyStatus":{
+        "buyReqGoPrice":int(data['buyReqGoPrice']),
+        "buyPrice":int(data['buyPrice']),
+        "buyReqWithdrawPrice":int(data['buyReqWithdrawPrice']),
+        },
+        "sellStatus":{
+        "sellReqGoPrice":int(data['sellReqGoPrice']),
+        "sellPrice":int(data['sellPrice']),
+        "sellReqWitdrawPrice":int(data['sellReqWitdrawPrice']),
+    }}
+    print("handle_start_buying tickerPrice:", tickerPrice)
     if tickerPrice is not None:
         # Start buying logic
-        while True:
-            current_price = send_request_to_stock_program('handle_realtime_stock_price', tickerPrice)
-
-            if buyReqGoPrice <= current_price <= buyReqWithdrawPrice:
-                # Place buy order using the buyPrice
-                # Your buy order logic goes here
-                pass
-
-            time.sleep(1)  # Adjust this value to set the update interval
+        if isTradingStop is not True:
+            while True:
+                status = send_request_to_stock_program('start_trading', forSendingData)
+                print(status)
+                emit('trade_result', {'result': status})
+                time.sleep(1)  # Adjust this value to set the update interval
 
 @app.route('/stop_trading') # 구현해야함
 def stop_trading():
     result = send_request_to_stock_program('stop_trading', '')
-    return jsonify({'stop_trading': result})
+    isTradingStop =True
+    print(result)
+    return jsonify({'result': result})
 
 
 # 주문 체결 결과 이벤트 핸들러

@@ -45,7 +45,7 @@ class Kiwoom:
         self.OneTrStatus ={
             "trCode":None,
             "nowTrPrice":None,
-            "status":"", # 거래시작/ 거래중지
+            "status":False, # 거래시작/ 거래중지
             "tradingStatus":"", # 6개의 스테이터스 BUY BUY_REQUESTING BUY_CANCELING SELL SELL_REQUESTING SELL_CANCELING
             "buyStatus":{
             "buyReqGoPrice":None,
@@ -99,7 +99,9 @@ class Kiwoom:
         self.screen_meme_stock = "6000" #종목별GyeaJa 할당할 주문용 스크린 번호
         self.screen_start_stop_real = "1000" #장 시작/종료 실시간 스크린 번호
         self.screen_realData ="1010"
-
+        
+        self.tradingExcecuteMsgSend = None
+        self.tradingExcecuteReultMsgSend =None
 
         self._set_signals_slots()
 
@@ -189,11 +191,114 @@ class Kiwoom:
     def update_trading_status(self, key, value):
         self.OneTrStatus[key].update(value)
 
+    def fliterdOrderSuccessReturn(self, result):
+        tempOrderSucess = 1
+        if(result == 0):
+            tempOrderSucess = 0
+        else:
+            tempOrderSucess = 1
+        return tempOrderSucess  
+
+    #주식매매 주문 전달 후 메시지 값 설정 및 노티 전송
+    def tradingExcecuteMsgFunction(self, orderSucess, tradingStatus, channelName ):
+        fliterdOrderSuccess = self.fliterdOrderSuccessReturn(orderSucess)
+        settingTradingStatusAndMsg = {
+            0:{
+            "BUY_REQUESTING":{"msg":"매수주문 전달 성공","status":"SELL"},
+            "BUY_CANCELING":{"msg":"매수취소 전달 성공","status":"BUY"},
+            "SELL_REQUESTING":{"msg":"매도주문 전달 성공","status":"BUY"},
+            "SELL_CANCELING":{"msg":"","매도취소 전달 성공":"SELL"},
+            },
+            1:{
+            "BUY_REQUESTING":{"msg":"매수주문 전달 실패","status":"BUY_REQUESTING"},
+            "BUY_CANCELING":{"msg":"매수취소 전달 실패","status":"SELL"},
+            "SELL_REQUESTING":{"msg":"매도주문 전달 실패","status":"SELL_REQUESTING"},
+            "SELL_CANCELING":{"msg":"매도취소 전달 실패","status":"BUY"},
+            }            
+        }
+
+        print(settingTradingStatusAndMsg[fliterdOrderSuccess][tradingStatus]["msg"])
+        self.OneTrStatus["tradingStatus"] =settingTradingStatusAndMsg[fliterdOrderSuccess][tradingStatus]["status"]        
+        self.tradingExcecuteMsgSend = settingTradingStatusAndMsg[fliterdOrderSuccess][tradingStatus]["msg"]
+
+    # 주식매매 시작
+    def tradingExcecute(self, tradingStatus):
+        print("# mode:  tradingExcecute- ", tradingStatus)
+        order_type_lookup = {'신규매수': 1, '신규매도': 2, '매수취소': 3, '매도취소': 4} 
+        hoga_lookup = {'지정가': "00", '시장가': "03"}
+
+        # 매수요청
+        if self.OneTrStatus["tradingStatus"] =="BUY_REQUESTING": 
+                order_success = self.sendOrder("매수", "0101", self.account_num, order_type_lookup["신규매수"], self.OneTrStatus["trCode"], 1, self.OneTrStatus["buyStatus"]["buyPrice"], hoga_lookup["지정가"], "")
+                self.tradingExcecuteMsgFunction(order_success,"BUY_REQUESTING","#autobot")
+       
+        # 매수취소
+        elif self.OneTrStatus["tradingStatus"] =="BUY_CANCELING": 
+                order_success =  self.sendOrder("매수취소", "0101", self.account_num, order_type_lookup["매수취소"], self.OneTrStatus["trCode"], 1, self.OneTrStatus["buyStatus"]["buyPrice"], hoga_lookup["지정가"], "")
+                self.tradingExcecuteMsgFunction(order_success,"BUY_CANCELING","#autobot")
+
+        # 매도요청
+        elif self.OneTrStatus["tradingStatus"] =="SELL_REQUESTING": 
+                order_success =  self.sendOrder("매도", "0101", self.account_num, order_type_lookup["신규매도"], self.OneTrStatus["trCode"], 1, self.OneTrStatus["sellStatus"]["sellPrice"], hoga_lookup["지정가"], "")
+                self.tradingExcecuteMsgFunction(order_success,"SELL_REQUESTING","#autobot")
+
+        # 매도취소            
+        elif self.OneTrStatus["tradingStatus"] =="SELL_CANCELING": 
+                order_success =  self.sendOrder("매도취소", "0101", self.account_num, order_type_lookup["매도취소"], self.OneTrStatus["trCode"], 1, self.OneTrStatus["sellStatus"]["sellPrice"], hoga_lookup["지정가"], "")
+                self.tradingExcecuteMsgFunction(order_success,"SELL_CANCELING","#autobot")
+
+        print("called\n")   
+
+    # 주식매매전 트레이딩 Status 설정 6가지
+    def tradingStatusSetting(self):
+        print("========================tradingStatusSetting===================")  
+        print("# mode:  tradingStatusSetting- ",  self.OneTrStatus["tradingStatus"])
+        if self.OneTrStatus["tradingStatus"] =="BUY":
+            if int(self.OneTrStatus["buyStatus"]["buyReqGoPrice"]) > int (self.OneTrStatus["nowTrPrice"]) :
+                self.OneTrStatus["tradingStatus"] ="BUY_REQUESTING" # 주문요청상태로
+
+        elif self.OneTrStatus["tradingStatus"] =="BUY_REQUESTING":
+            if int(self.OneTrStatus["buyStatus"]["buyReqWithdrawPrice"]) < int (self.OneTrStatus["nowTrPrice"]):
+                self.OneTrStatus["tradingStatus"] =="BUY_CANCELING" 
+                # BUY_REQUESTING / BUY_CANCELING
+
+        elif self.OneTrStatus["tradingStatus"] =="BUY_CANCELING":
+                self.OneTrStatus["tradingStatus"] ="BUY" # 주문취소상태면 다시 BUY로
+                # BUY/  BUY_CANCELING
+
+        elif self.OneTrStatus["tradingStatus"] =="SELL":
+            if int(self.OneTrStatus["sellStatus"]["sellReqGoPrice"]) < int (self.OneTrStatus["nowTrPrice"]) :
+                self.OneTrStatus["tradingStatus"] ="SELL_REQUESTING" 
+                #SELL_REQUESTING /SELL
+
+        elif self.OneTrStatus["tradingStatus"] =="SELL_REQUESTING":         
+            if int(self.OneTrStatus["sellStatus"]["sellReqWitdrawPrice"]) > int (self.OneTrStatus["nowTrPrice"]) :
+                self.OneTrStatus["tradingStatus"] ="SELL_CANCELING" 
+                #SELL_REQUESTING /SELL_CANCELING
+
+        elif self.OneTrStatus["tradingStatus"] =="SELL_CANCELING":
+            if int(self.OneTrStatus["sellStatus"]["sellReqGoPrice"]) > int (self.OneTrStatus["nowTrPrice"]) :
+                self.OneTrStatus["tradingStatus"] ="SELL"
+                # SELL /  SELL_CANCELING       
+
+    # 주식거래 시작
+    def startTradingReal(self):
+        print("#startTradingReal")     
+        self.kst = pytz.timezone('Asia/Seoul')
+        self.current_time = datetime.datetime.now(self.kst).time()
+
+        if self.current_time > datetime.time(9, 0) or self.current_time <= datetime.time(15, 30):       
+            while self.OneTrStatus["status"]:
+                    self.tradingStatusSetting()  
+                    self.tradingExcecute(self.OneTrStatus["tradingStatus"] , self.OneTrStatus["trCode"])
+
+
     # 주식거래중지
     def stopTradingReal(self):
         print("# mode:  거래중지")
-        self.OneTrStatus["status"] = "거래중지"
+        self.OneTrStatus["status"] = False
         self.SetRealRemove("ALL", self.OneTrStatus["trCode"])  
+        return "거래중지 완료"
         # QTest.qWait(1000) 
 
     # 종목코드로 조회 및 셋팅
@@ -209,17 +314,14 @@ class Kiwoom:
         self.CommRqData( "종목선택완료", "opt10001", 0, self.screen_my_info)   
         print("# mode:  stockSearchAndSetting code: ",self.OneTrStatus["trCode"] )
 
-        # self.realTimeReceived   = None               # 실시간 주가받았는지
-        # self.realTimeTrInfo     = None   
 
     # 현재가 가져오기
     def stockRealTimePrice(self):
         print('self.OneTrStatus["trCode"]',self.OneTrStatus["trCode"])
         self.GetCommRealData(self.OneTrStatus["trCode"], self.realType.REALTYPE["주식체결"]['현재가'])
-        print('dd')
         while not self.realTimeReceived:
             pythoncom.PumpWaitingMessages()
-        print("self.realTimeTrInfo:", self.tr_data)
+        print("self.realTimeTrInfo:", self.realTimeTrInfo)
         return self.realTimeTrInfo
        
     def screen_number_setting(self):
@@ -331,9 +433,9 @@ class Kiwoom:
                                                      "매입금액": total_chegual_price,
                                                      "매매가능수량": possible_quantity})
                 print("#####itemCode ",self.acc_portfolio[itemCode])
-                print("#####",self.acc_portfolio)
-                self.tr_data = self.acc_portfolio[itemCode]
-                self.received = True
+            print("#####",self.acc_portfolio)
+            self.tr_data = self.acc_portfolio
+            self.received = True
             self.screen_number_setting()
 
             if next == "2":
@@ -412,14 +514,49 @@ class Kiwoom:
             item_cnt (int): 아이템 갯수
             fid_list (str): fid list
         """
-        print("gubun: %s, item_cnt: %s, fid_list: %s --- " %(gubun, item_cnt, fid_list))        
-        if self.chejan_dqueue is not None:
-            output = {'gubun': gubun}
-            for fid in fid_list.split(';'):
-                data = self.GetChejanData(fid)
-                output[fid]=data
+        print("OnReceiveChejanData gubun: %s, item_cnt: %s, fid_list: %s --- " %(gubun, item_cnt, fid_list))        
+        # gubun – 0: 주문체결통보, 1: 국내주식 잔고통보, 4: 파생상품 잔고통보
+        # sFidList – 데이터 구분은 ‘;’
 
-            self.chejan_dqueue.put(output)
+        if int(gubun) == 0:
+            print("# mode:  chejan_slot-주문체결통보") 
+            price = self.GetChejanData(self.realType.REALTYPE['주문체결']['체결가']).strip()
+            if price == '':
+                return
+            sCode = self.GetChejanData(self.realType.REALTYPE['주문체결']['종목코드']).strip()[1:]
+            ctime = self.GetChejanData(self.realType.REALTYPE['주문체결']['주문/체결시간']).strip()[1:]
+            name = self.GetChejanData(self.realType.REALTYPE['주문체결']['종목명']).strip()
+            quantity = self.GetChejanData(self.realType.REALTYPE['주문체결']['체결량']).strip()
+            status = self.GetChejanData(self.realType.REALTYPE['주문체결']['매도수구분']).strip()
+            print("status:",status)
+            
+            if status == '2':  # 매수              
+                self.acc_portfolio[sCode].update({"종목명": name})
+                self.acc_portfolio[sCode].update({"보유수량": int(quantity)})
+                self.acc_portfolio[sCode].update({"체결가": price})                
+                msg = "[매수]" + name + " 체결가 : " + price + " 수량 : " + quantity+" 체결시간:"+ctime
+
+                self.tradingExcecuteReultMsgSend =msg
+                self.OneTrStatus["tradingStatus"] ="SELL"
+
+            elif status == '1':  # 매도   
+                print(self.acc_portfolio[sCode])
+                msg = "[매도]" + name + " 체결가 : " + price + " 수량 : " + quantity+" 체결시간:"+ctime
+                # print(msg)
+                self.tradingExcecuteReultMsgSend =msg
+                self.acc_portfolio[sCode]['보유수량'] -= int(quantity)                    
+                self.OneTrStatus["tradingStatus"] ="BUY"
+
+            
+        else:
+            print("chejan_slot, else: ", gubun)      
+        # if self.chejan_dqueue is not None:
+        #     output = {'gubun': gubun}
+        #     for fid in fid_list.split(';'):
+        #         data = self.GetChejanData(fid)
+        #         output[fid]=data
+
+        #     self.chejan_dqueue.put(output)
 
     def subscribe_realtime_data(self, code, fids):
         screen_no = "1000"  # 실시간 구독의 스크린 번호를 설정하세요.
@@ -459,8 +596,9 @@ class Kiwoom:
             elif value == "8": #시간외
                 pass
 
-        elif rtype == "주식체결":
-            b = self.GetCommRealData(code, self.realType.REALTYPE[rtype]['현재가']) # 출력 : +(-)2520
+        elif rtype == "주식예상체결":
+            print("주식체결;;;")
+            b = self.GetCommRealData(code, 10) # 출력 : +(-)2520
             b = abs(int(b))           
             self.OneTrStatus["nowTrPrice"] = b  # 종목검색 정보 윗줄의 현재가도 실시간 업데이트
             self.realTimeReceived = True
@@ -764,6 +902,11 @@ class Kiwoom:
         trcode =kwargs["trcode"]
         self.OneTrStatus["trCode"] = trcode
         next = kwargs["next"]
+
+        # set input
+        for id in kwargs:
+            if id.lower() != "trcode" and id.lower() != "next":
+                self.SetInputValue(id, kwargs[id])
 
         # self.SetInputValue("계좌번호", kwargs["계좌번호"])
         # self.SetInputValue("비밀번호", kwargs["비밀번호"])

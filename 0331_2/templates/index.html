@@ -9,16 +9,17 @@
     <!-- Add an element for displaying account balance -->
 
     <div id="account_info">
-        <h3>내 계좌 정보</h3>
+        <p><h3>내 계좌 정보</h3> <button id="get_account_list">가져오기</button></p>
         <!-- Add this element -->
+        계좌 선택
         <select id="account_list" name="account_list">
             <option value="" selected>계좌 선택</option>
             {% for account in account_list %}
               <option value="{{ account }}">{{ account }}</option>
             {% endfor %}
           </select>
-        <button id="select_account">계좌 선택</button>
-
+        
+        <p>선택된 계좌번호는: <span id="selected_account"></span> 입니다.</p>
     </div>  
 
     <div id="account_balance">
@@ -40,7 +41,7 @@
         <li>매도&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;가격:&nbsp;&nbsp;<input type="number" id="sellPrice" placeholder="Enter buy price"></li>
         <li>매도 철회 가격:&nbsp;&nbsp;<input type="number" id="sellReqWitdrawPrice" placeholder="Enter buy request withdraw price"></li>
     </ul>
-    <button id="start_buying">매매 시작</button>
+    <button id="start_buying">매매 시작</button><button id="stop_trading">매매 중지</button>
 
     <!-- Add an element for displaying trade results -->
     <div id="trade_results">
@@ -52,88 +53,121 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.min.js"></script>
     <script>
         const socket = io();
+        var isOk =false
+        var selectedAccount = null
+        var isTradingStop = false
+        $("#get_account_list").click(function() {
+            // updateAccountList();
+            console.log('get_account_list')
+            fetch('/account_list')
+            .then(response => response.json())
+            .then(data => {
+                // console.log(data.account_list);
+                const accountList = JSON.parse(data.account_list);
+                const select = $("#account_list");
+                select.empty();
 
-        // Add this function
-        function updateAccountList() {
-            socket.emit('request_account_list');
-        }
-
-        // Add this event listener
-        socket.on('account_list', function(data) {
-            const accountList = data.account_list;
-            const select = $("#account_list");
-            select.empty();
-
-            for (const account of accountList) {
-                const option = $("<option></option>")
-                    .attr("value", account)
-                    .text(account);
-                select.append(option);
-            }
-        });
-
-        // Call this function on page load
-        updateAccountList();
-
-        // 선택된 계좌 정보를 서버로 전송
-        $('#account_list').on('change', function() {
-            const account = $(this).val();
-            socket.emit('select_account', {account: account});
-        });
-
-        socket.on('selected_account', function(data) {
-            console.log('Selected account:', data.account);
-            // 여기에 계좌에 따른 추가 작업을 수행할 수 있습니다.
-        });
-
-
-        // Function to request account balance and update the UI
-        function updateAccountBalance() {
-            socket.emit('request_account_balance');
-        }
-
-        // Update account balance on page load and every 5 seconds
-        updateAccountBalance();
-        setInterval(updateAccountBalance, 5000);
-
-        // Update account balance when receiving data from the server
-        socket.on('account_balance', function(data) {
-            $("#balance").text(data.balance);
-        });
-
-        $("#subscribe_stock").click(function() {
-            const stock_code = $("#stock_code").val();
-            socket.emit('subscribe_stock', {code: stock_code});
-        });
-
-        socket.on('stock_price', function(data) {
-            $("#price").text(data.price);
-        });
-
-        $("#start_buying").click(function() {
-            const buyReqGoPrice = $("#buyReqGoPrice").val();
-            const buyPrice = $("#buyPrice").val();
-            const buyReqWithdrawPrice = $("#buyReqWithdrawPrice").val();
-            const sellReqGoPrice = $("#sellReqGoPrice").val();
-            const sellPrice = $("#sellPrice").val();
-            const sellReqWitdrawPrice = $("#sellReqWitdrawPrice").val();
-
-            // Send the values to the server
-            socket.emit('start_buying', {
-                buyReqGoPrice: buyReqGoPrice,
-                buyPrice: buyPrice,
-                buyReqWithdrawPrice: buyReqWithdrawPrice,
-                sellReqGoPrice: sellReqGoPrice,
-                sellPrice: sellPrice,
-                sellReqWitdrawPrice: sellReqWitdrawPrice                
+                for (const account of accountList) {
+                    const option = $("<option></option>")
+                        .attr("value", account)
+                        .text(account);
+                    select.append(option);
+                }          
             });
+            init()
         });
 
-        // Listen for trade results from the server
-        socket.on('trade_result', function(data) {
-            // Append the trade result to the trade list
-            $("#trade_list").append('<li>' + data.result + '</li>');
-        });
+        function init(){
+            // 선택된 계좌 정보를 서버로 전송
+            $('#account_list').on('change', function() {
+                selectedAccount = $(this).val();
+                console.log(selectedAccount)
+                $('#selected_account').text(selectedAccount) // 화면에도 보이게 셋팅
+                // socket.emit('select_account', {account: account});
+            });
+
+         // Function to request account balance and update the UI
+            function updateAccountBalance() {
+                if(selectedAccount !== null && isTradingStop !== true)
+                {
+                    socket.emit('request_account_balance',{selectedAccount: selectedAccount});
+                }
+            }
+
+            // Update account balance on page load and every 5 seconds
+            updateAccountBalance();
+            setInterval(updateAccountBalance, 5000);
+
+            // Update account balance when receiving data from the server
+            socket.on('account_balance', function(data) {
+                console.log(data.balance)
+                const sosos  = data.balance
+                $("#balance").empty()
+
+                for (let i = 0; i < sosos.length; i++) {
+                const stock = sosos[i];
+                console.log(stock);
+                $("#balance").append(`<p>${JSON.stringify(stock)}</p>`)
+                }
+            });
+
+            $("#subscribe_stock").click(function() {
+                const stock_code = $("#stock_code").val();
+                socket.emit('subscribe_stock', {code: stock_code});
+            });
+
+            socket.on('stock_price', function(data) {
+                $("#price").text(data.price);
+            });
+
+            $("#start_buying").click(function() {
+                const buyReqGoPrice = $("#buyReqGoPrice").val();
+                const buyPrice = $("#buyPrice").val();
+                const buyReqWithdrawPrice = $("#buyReqWithdrawPrice").val();
+                const sellReqGoPrice = $("#sellReqGoPrice").val();
+                const sellPrice = $("#sellPrice").val();
+                const sellReqWitdrawPrice = $("#sellReqWitdrawPrice").val();
+
+                // Send the values to the server
+                socket.emit('start_buying', {
+                    buyReqGoPrice: buyReqGoPrice,
+                    buyPrice: buyPrice,
+                    buyReqWithdrawPrice: buyReqWithdrawPrice,
+                    sellReqGoPrice: sellReqGoPrice,
+                    sellPrice: sellPrice,
+                    sellReqWitdrawPrice: sellReqWitdrawPrice                
+                });
+            });
+            
+            // Listen for trade results from the server
+            socket.on('trade_result', function(data) {
+                // Append the trade result to the trade list
+                $("#trade_list").append('<li>' + data.result + '</li>');
+            });
+
+            $("#stop_trading").click(function() {
+                // Send the values to the server
+                console.log('stop_trading')
+                isTradingStop = true
+                fetch('/stop_trading')
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data.result);
+                    $("#trade_list").empty()
+                    $("#trade_list").append('<li>' + data.result + '</li>')
+        
+                });
+            });
+
+            socket.on('stock_price', function(data) {
+                $("#price").text(data.price);
+            });
+
+        }
+
+
+
+
     </script>
 </body>
 </html>
