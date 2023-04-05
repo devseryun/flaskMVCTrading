@@ -198,24 +198,25 @@ class Kiwoom:
 
     # 종목코드로 조회 및 셋팅
     def stockSearchAndSetting(self, sPrevNext="0"):  
-        code = self.trSearchText.text()        
-        self.OneTrStatus["trCode"] = code.strip()
+        # code = self.trSearchText.text()        
+        # self.OneTrStatus["trCode"] = code.strip()
         if self.OneTrStatus["trCode"] in self.acc_portfolio:
             pass
         else:
             self.acc_portfolio.update({self.OneTrStatus["trCode"]:{"보유수량": 0}})
-        self.acc_portfolio[self.OneTrStatus["trCode"]].update({"selectedTrcode": code})
-        self.SetInputValue( "종목코드", code)
+        self.acc_portfolio[self.OneTrStatus["trCode"]].update({"selectedTrcode": self.OneTrStatus["trCode"]})
+        self.SetInputValue( "종목코드", self.OneTrStatus["trCode"])
         self.CommRqData( "종목선택완료", "opt10001", 0, self.screen_my_info)   
-        print("# mode:  stockSearchAndSetting code: ",code )
+        print("# mode:  stockSearchAndSetting code: ",self.OneTrStatus["trCode"] )
 
         # self.realTimeReceived   = None               # 실시간 주가받았는지
         # self.realTimeTrInfo     = None   
 
     # 현재가 가져오기
     def stockRealTimePrice(self):
+        print('self.OneTrStatus["trCode"]',self.OneTrStatus["trCode"])
         self.GetCommRealData(self.OneTrStatus["trCode"], self.realType.REALTYPE["주식체결"]['현재가'])
-        
+        print('dd')
         while not self.realTimeReceived:
             pythoncom.PumpWaitingMessages()
         print("self.realTimeTrInfo:", self.tr_data)
@@ -420,6 +421,12 @@ class Kiwoom:
 
             self.chejan_dqueue.put(output)
 
+    def subscribe_realtime_data(self, code, fids):
+        screen_no = "1000"  # 실시간 구독의 스크린 번호를 설정하세요.
+        fid_list = ','.join(map(str, fids))  # 정수 FID 리스트를 쉼표로 구분된 문자열로 변환합니다.
+        self.ocx.dynamicCall("SetRealReg(QString, QString, QString, QString)", screen_no, code, fid_list, "1")
+
+
     def OnReceiveRealData(self, code, rtype, data):
         print("OnReceiveRealData: code: %s, rtype: %s, data: %s --- " %(code, rtype, data))        
         """실시간 데이터를 받는 시점에 콜백되는 메소드입니다.
@@ -429,54 +436,57 @@ class Kiwoom:
             rtype (str): 리얼타입 (주식시세, 주식체결, ...)
             data (str): 실시간 데이터 전문
         """
-        # print("# mode:  realdata_slot", sRealData)
-        # if rtype == "장시작시간":
-        #     fid = self.realType.REALTYPE[rtype]['장운영구분'] # (0:장시작전, 2:장종료전(20분), 3:장시작, 4,8:장종료(30분), 9:장마감)
-        #     value = self.GetCommRealData(code, fid)
-        #     if value == '0':
-        #         print("장 시작 전\n")
+        print("# mode:  realdata_slot", data)
+        if rtype == "장시작시간":
+            fid = self.realType.REALTYPE[rtype]['장운영구분'] # (0:장시작전, 2:장종료전(20분), 3:장시작, 4,8:장종료(30분), 9:장마감)
+            value = self.GetCommRealData(code, fid)
+            if value == '0':
+                print("장 시작 전\n")
 
-        #     elif value == '3':
-        #         print("정규장 시작\n")
+            elif value == '3':
+                print("정규장 시작\n")
 
-        #     elif value == "2":
-        #         print("장 종료, 동시호가로 넘어감\n")
+            elif value == "2":
+                print("장 종료, 동시호가로 넘어감\n")
 
-        #     elif value == '4':  # 장시간외 거래 시작
-        #         print("3시30분 장 종료\n")
-        #         self.OneTrStatus["status"] = "거래중지"
-        #         for code in self.portfolio_stock_dict.keys():
-        #             self.SetRealRemove(self.portfolio_stock_dict[code]['스크린번호'], code)
-        #         self.calculator_fnc()
-        #         sys.exit()
-        #     elif value == "8": #시간외
-        #         pass
+            elif value == '4':  # 장시간외 거래 시작
+                print("3시30분 장 종료\n")
+                self.OneTrStatus["status"] = "거래중지"
+                for code in self.portfolio_stock_dict.keys():
+                    self.SetRealRemove(self.portfolio_stock_dict[code]['스크린번호'], code)
+                self.calculator_fnc()
+                sys.exit()
+            elif value == "8": #시간외
+                pass
 
-        # elif rtype == "주식체결":
-        #     b = self.GetCommRealData(code, self.realType.REALTYPE[rtype]['현재가']) # 출력 : +(-)2520
-        #     b = abs(int(b))           
-        #     self.OneTrStatus["nowTrPrice"] = b  # 종목검색 정보 윗줄의 현재가도 실시간 업데이트
-        #     self.tempText = "현재가:"+str(b)
-        #     self.realTimeTrInfo =str(b)
-        #     self.kst = pytz.timezone('Asia/Seoul')
-        #     self.current_time = datetime.datetime.now(self.kst).time()
+        elif rtype == "주식체결":
+            b = self.GetCommRealData(code, self.realType.REALTYPE[rtype]['현재가']) # 출력 : +(-)2520
+            b = abs(int(b))           
+            self.OneTrStatus["nowTrPrice"] = b  # 종목검색 정보 윗줄의 현재가도 실시간 업데이트
+            self.realTimeReceived = True
+            self.realTimeTrInfo = self.OneTrStatus["nowTrPrice"]
 
-        #     if self.current_time > datetime.time(9, 0) or self.current_time <= datetime.time(15, 30):
-        #         if self.OneTrStatus["status"] =="거래시작":
-        #             self.tradingStatusSetting()  
-        #             self.tradingExcecute(self.OneTrStatus["tradingStatus"] , code)
-        # else:
-        #     print("# mode:  realdata_slot - rtype: ", rtype)     
+            # self.tempText = "현재가:"+str(b)
+            # self.realTimeTrInfo =str(b)
+            # self.kst = pytz.timezone('Asia/Seoul')
+            # self.current_time = datetime.datetime.now(self.kst).time()
 
-        # get real data
-        real_data = {"code": code}
-        for fid in self.real_fid[code]:
-            val = self.GetCommRealData(code, fid)
-            real_data[fid] = val
-        self.realTimeReceived = True
-        self.realTimeTrInfo = real_data
-        # put real data to the queue
-        self.real_dqueues.put(real_data)
+            # if self.current_time > datetime.time(9, 0) or self.current_time <= datetime.time(15, 30):
+            #     if self.OneTrStatus["status"] =="거래시작":
+            #         self.tradingStatusSetting()  
+            #         self.tradingExcecute(self.OneTrStatus["tradingStatus"] , code)
+        else:
+            print("# mode:  realdata_slot - rtype: ", rtype)     
+
+        # # get real data
+        # real_data = {"code": code}
+        # for fid in self.real_fid[code]:
+        #     val = self.GetCommRealData(code, fid)
+        #     real_data[fid] = val
+        # self.realTimeReceived = True
+        # self.realTimeTrInfo = real_data
+        # # put real data to the queue
+        # self.real_dqueues.put(real_data)
 
     def _set_signals_slots(self):
         self.ocx.OnReceiveTrData.connect(self.OnReceiveTrData)
@@ -692,7 +702,9 @@ class Kiwoom:
         return data.strip()
 
     def GetCommRealData(self, code, fid):
+        print('code',code,'fid',fid)
         data = self.ocx.dynamicCall("GetCommRealData(QString, int)", code, fid)
+        print('data: ', data)
         return data
 
     def GetChejanData(self, fid):

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Trading App</title>
+</head>
+<body>
+    <!-- Add an element for displaying account balance -->
+
+    <div id="account_info">
+        <h3>내 계좌 정보</h3>
+        <!-- Add this element -->
+        <select id="account_list" name="account_list">
+            <option value="" selected>계좌 선택</option>
+            {% for account in account_list %}
+              <option value="{{ account }}">{{ account }}</option>
+            {% endfor %}
+          </select>
+        <button id="select_account">계좌 선택</button>
+
+    </div>  
+
+    <div id="account_balance">
+        <h3>계좌 평가 잔고 내역</h3>
+        <p>잔액: <span id="balance"></span></p>
+    </div>  
+ 
+    <!-- Add these elements -->
+    <input type="text" id="stock_code" placeholder="Enter stock code">
+    <button id="subscribe_stock">Subscribe</button>
+    <p>Realtime price: <span id="price"></span></p>
+    <!-- Add these elements -->
+
+    <ul>
+        <li>매수 요청 가격:&nbsp;&nbsp;<input type="number" id="buyReqGoPrice" placeholder="Enter buy request go price"></li>
+        <li>매수&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;가격:&nbsp;&nbsp;<input type="number" id="buyPrice" placeholder="Enter buy price"></li>
+        <li>매수 철회 가격:&nbsp;&nbsp;<input type="number" id="buyReqWithdrawPrice" placeholder="Enter buy request withdraw price"></li>
+        <li>매도 요청 가격:&nbsp;&nbsp;<input type="number" id="sellReqGoPrice" placeholder="Enter buy request go price"></li>
+        <li>매도&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;가격:&nbsp;&nbsp;<input type="number" id="sellPrice" placeholder="Enter buy price"></li>
+        <li>매도 철회 가격:&nbsp;&nbsp;<input type="number" id="sellReqWitdrawPrice" placeholder="Enter buy request withdraw price"></li>
+    </ul>
+    <button id="start_buying">매매 시작</button>
+
+    <!-- Add an element for displaying trade results -->
+    <div id="trade_results">
+        <h3>체결 결과</h3>
+        <ul id="trade_list"></ul>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        // Add this function
+        function updateAccountList() {
+            socket.emit('request_account_list');
+        }
+
+        // Add this event listener
+        socket.on('account_list', function(data) {
+            const accountList = data.account_list;
+            const select = $("#account_list");
+            select.empty();
+
+            for (const account of accountList) {
+                const option = $("<option></option>")
+                    .attr("value", account)
+                    .text(account);
+                select.append(option);
+            }
+        });
+
+        // Call this function on page load
+        updateAccountList();
+
+        // 선택된 계좌 정보를 서버로 전송
+        $('#account_list').on('change', function() {
+            const account = $(this).val();
+            socket.emit('select_account', {account: account});
+        });
+
+        socket.on('selected_account', function(data) {
+            console.log('Selected account:', data.account);
+            // 여기에 계좌에 따른 추가 작업을 수행할 수 있습니다.
+        });
+
+
+        // Function to request account balance and update the UI
+        function updateAccountBalance() {
+            socket.emit('request_account_balance');
+        }
+
+        // Update account balance on page load and every 5 seconds
+        updateAccountBalance();
+        setInterval(updateAccountBalance, 5000);
+
+        // Update account balance when receiving data from the server
+        socket.on('account_balance', function(data) {
+            $("#balance").text(data.balance);
+        });
+
+        $("#subscribe_stock").click(function() {
+            const stock_code = $("#stock_code").val();
+            socket.emit('subscribe_stock', {code: stock_code});
+        });
+
+        socket.on('stock_price', function(data) {
+            $("#price").text(data.price);
+        });
+
+        $("#start_buying").click(function() {
+            const buyReqGoPrice = $("#buyReqGoPrice").val();
+            const buyPrice = $("#buyPrice").val();
+            const buyReqWithdrawPrice = $("#buyReqWithdrawPrice").val();
+            const sellReqGoPrice = $("#sellReqGoPrice").val();
+            const sellPrice = $("#sellPrice").val();
+            const sellReqWitdrawPrice = $("#sellReqWitdrawPrice").val();
+
+            // Send the values to the server
+            socket.emit('start_buying', {
+                buyReqGoPrice: buyReqGoPrice,
+                buyPrice: buyPrice,
+                buyReqWithdrawPrice: buyReqWithdrawPrice,
+                sellReqGoPrice: sellReqGoPrice,
+                sellPrice: sellPrice,
+                sellReqWitdrawPrice: sellReqWitdrawPrice                
+            });
+        });
+
+        // Listen for trade results from the server
+        socket.on('trade_result', function(data) {
+            // Append the trade result to the trade list
+            $("#trade_list").append('<li>' + data.result + '</li>');
+        });
+    </script>
+</body>
+</html>

@@ -18,7 +18,7 @@ class KiwoomEventHandler:
     def handle_account_info(self):
         print("handle_account_info")
         account_list = kiwoom.GetLoginInfo("ACCNO")
-        return account_list[1]  # 두 번째 계좌 정보를 반환합니다.
+        return account_list
 
     def handle_select_account(self,account_num):   #계좌평가 잔고내역
         print("handle_select_account")
@@ -72,10 +72,13 @@ class KiwoomEventHandler:
         return result
 
     def handle_realtime_stock_price(self, code):
-        print("handle_single_codeInfo_and_setting")        
+        print("handle_single_codeInfo_and_setting code", code)
         kiwoom.OneTrStatus["trCode"] = code
+        fids = [10]  # 현재가에 해당하는 FID를 구독하려면 10을 사용합니다. 필요한 경우 여러 FID를 추가하세요.
+        kiwoom.subscribe_realtime_data(code, fids)
         realTimePrice = kiwoom.stockRealTimePrice()
-        return int(realTimePrice)       
+        return int(realTimePrice)
+
 
 
     def handle_single_codeInfo(self, scode):             #종목단순 조회 
@@ -101,22 +104,26 @@ class KiwoomEventHandler:
                  
     def handle_start_trading(self,data):                        # 거래시작
         print("# mode:  거래시작")      
-        kiwoom.update_trading_status("buyStatus", {
-            "buyReqGoPrice": data.get("buyReqGoPrice"),
-            "buyPrice": data.get("buyPrice"),
-            "buyReqWithdrawPrice": data.get("buyReqWithdrawPrice")
-        })
-        kiwoom.update_trading_status("sellStatus", {
-            "sellReqGoPrice": data.get("sellReqGoPrice"),
-            "sellPrice": data.get("sellPrice"),
-            "sellReqWitdrawPrice": data.get("sellReqWitdrawPrice")
-        })
+        # kiwoom.update_trading_status("buyStatus", {
+        #     "buyReqGoPrice": data.get("buyReqGoPrice"),
+        #     "buyPrice": data.get("buyPrice"),
+        #     "buyReqWithdrawPrice": data.get("buyReqWithdrawPrice")
+        # })
+        # kiwoom.update_trading_status("sellStatus", {
+        #     "sellReqGoPrice": data.get("sellReqGoPrice"),
+        #     "sellPrice": data.get("sellPrice"),
+        #     "sellReqWitdrawPrice": data.get("sellReqWitdrawPrice")
+        # })
 
-        kiwoom.OneTrStatus["status"] = "거래시작"
-        kiwoom.GetCommRealData(kiwoom.OneTrStatus["trCode"], kiwoom.realType.REALTYPE["주식체결"]['현재가'])
-        print("called\n")  
-        return "Trading started"
+        # kiwoom.OneTrStatus["status"] = "거래시작"
+        kiwoom.OneTrStatus["trCode"] = "005930"
+        # result = kiwoom.GetCommRealData(kiwoom.OneTrStatus["trCode"], kiwoom.realType.REALTYPE["주식체결"]['현재가'])
+        # print("called\n")  
+        # return result    
 
+        realTimePrice = kiwoom.stockRealTimePrice()
+        return int(realTimePrice)   
+    
     def handle_stop_trading(self):
         return "Trading stopped"        
         
@@ -136,11 +143,12 @@ class KiwoomEventHandler:
 kiwoom_event_handler = KiwoomEventHandler()
 
 db = redis.StrictRedis(host='localhost', port=6379, db=0)
-request_types = ['account_info', 'select_account','my_balance_check','get_stock_real_time_price','get_single_codeInfo', 'get_single_codeInfo_and_setting','start_trading', 'stop_trading']
+request_types = ['account_info', 'select_account','handle_realtime_stock_price','my_balance_check','get_stock_real_time_price','get_single_codeInfo', 'get_single_codeInfo_and_setting','start_trading', 'stop_trading']
 
 while True:
     for request_type in request_types:
         data = db.get(request_type)
+        print('while True:')
         print('request_type: \n',request_type)
         print('요청확인 data',data)
         if data is not None:
@@ -151,8 +159,8 @@ while True:
                 result = kiwoom_event_handler.handle_my_balance_check()
             elif request_type == 'select_account':
                 result = kiwoom_event_handler.handle_select_account(data)
-            elif request_type == 'get_stock_real_time_price':
-                result = kiwoom_event_handler.handle_realtime_stock_price(data)                
+            elif request_type == 'handle_realtime_stock_price':
+                result = kiwoom_event_handler.handle_realtime_stock_price(data)              
             elif request_type == 'get_single_codeInfo':
                 result = kiwoom_event_handler.handle_single_codeInfo(data)
             elif request_type == 'get_single_codeInfo_and_setting':
